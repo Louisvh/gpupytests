@@ -5,26 +5,41 @@ import pycuda.driver as cuda
 from pycuda.tools import make_default_context
 import pycuda.gpuarray as gpuarray
 
-testmat = np.ones((50, 50), dtype=np.complex64)
-print testmat
+def nearest_2power(n):
+    return np.power(2.,(np.ceil(np.log2(n))))
 
-a = np.fft.fft(testmat, 128, -1)
-b = np.real(np.fft.ifft(a, 128, -1))
 
-print "a= "
-print a
-print "b= "
-print b
+@profile
+def main():
+	testmat = np.ones((50, 50), dtype=np.complex64)
+	#print testmat
 
-cuda.init()
-context = make_default_context()
-stream = cuda.Stream()
+	a = np.fft.fft(testmat,int(nearest_2power(2500)),-1)
+	b = np.real(np.fft.ifft(a,int(nearest_2power(2500)),-1))
 
-plan = Plan((16, 16), stream=stream)
+#	print "a= "
+#	print a
+#	print "b= "
+#	print b
 
-gpu_testmat = gpuarray.to_gpu(data)
-plan.execute(gpu_data) 
-c = gpu_data.get()
-print result 
+	cuda.init()
+	context = make_default_context()
+	stream = cuda.Stream()
 
-context.pop()
+	plan = Plan((16, 16), stream=stream)
+
+	gpu_testmat = gpuarray.to_gpu(testmat)
+	plan.execute(gpu_testmat) 
+	c = gpu_testmat.get()
+
+	plan.execute(gpu_testmat, inverse=True) 
+	d = gpu_testmat.get()
+
+#	print "c= "
+#	print c
+#	print "d= "
+#	print d
+
+	context.pop()
+
+main()
