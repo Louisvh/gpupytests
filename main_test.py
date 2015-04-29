@@ -14,9 +14,14 @@ def main():
 #	print testmat
 
 	x = np.linspace(0, 2 * np.pi, 400)
-	y = np.sin(x ** 2)
-	y = np.concatenate((y,np.zeros(112)))
-	yim= np.zeros(512)
+	y1 = np.sin(2 * x)
+	y1 = np.concatenate((y1,np.zeros(112)))
+	y1 = y1.reshape(1,512)
+	y2 = np.sin(5 * x)
+	y2 = np.concatenate((y2,np.zeros(112)))
+	y2 = y2.reshape(1,512)
+	y = np.concatenate(((y1),(y2)),0).transpose()
+	yim= np.zeros((2,512))
 
 	a = np.fft.fft(y,int(nearest_2power(400)),0)
 	b = np.real(np.fft.ifft(a,int(nearest_2power(400)),0))
@@ -38,7 +43,7 @@ def main():
 	context = make_default_context()
 	stream = cuda.Stream()
 
-	plan = Plan(512, dtype=np.float64, context=context, stream=stream, fast_math=False)
+	plan = Plan((512,2), dtype=np.float64, context=context, stream=stream, fast_math=False)
 
 	gpu_testmat = gpuarray.to_gpu(y)
 	gpu_testmatim = gpuarray.to_gpu(yim)
@@ -49,7 +54,7 @@ def main():
 
 	axarr[3].plot(y)
 	axarr[3].set_title('input padded')
-	axarr[4].plot(c.transpose())
+	axarr[4].plot(c)
 	axarr[4].set_title('output Plan(input)')
 	axarr[5].plot(d)
 	axarr[5].set_title('output Plan(input, inverse=True)')
