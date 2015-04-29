@@ -10,42 +10,44 @@ def nearest_2power(n):
     return np.power(2.,(np.ceil(np.log2(n))))
 
 def main():
-	testmat = np.ones((10, 10), dtype=np.complex64)
-	print testmat
+	testmat = np.ones((100, 1), dtype=np.complex64)
+#	print testmat
 
-	padmat = np.zeros((10, int(nearest_2power(500)-10)))
-	catestmat = np.concatenate((testmat,padmat),1)
-	print testmat.shape, catestmat.shape
+	x = np.linspace(0, 2 * np.pi, 400)
+	y = np.sin(x ** 2)
+	y = np.concatenate((y,np.zeros(112)))
+	yim= np.zeros(512)
 
-	a = np.fft.fft(catestmat,int(nearest_2power(2500)),1).transpose()
-	b = np.real(np.fft.ifft(a.transpose(),int(nearest_2power(500)),1)).transpose()
+	a = np.fft.fft(y,int(nearest_2power(400)),0)
+	b = np.real(np.fft.ifft(a,int(nearest_2power(400)),0))
 
 	f, axarr = plt.subplots(6, sharex=False)
-	axarr[0].plot(catestmat)
-	axarr[0].set_title('input matrix')
+	axarr[0].plot(y)
+	axarr[0].set_title('input')
 	axarr[1].plot(a)
 	axarr[1].set_title('output np.fft(input)')
 	axarr[2].plot(b)
 	axarr[2].set_title('output np.ifft(np.fft(input))')
 
 #	print "a= "
-#	print a
+#	print a.transpose()
 #	print "b= "
-#	print b
+#	print b.transpose()
 
 	cuda.init()
 	context = make_default_context()
 	stream = cuda.Stream()
 
-	plan = Plan((16, 16), stream=stream)
+	plan = Plan(512, dtype=np.float64, context=context, stream=stream, fast_math=False)
 
-	gpu_testmat = gpuarray.to_gpu(catestmat)
-	plan.execute(gpu_testmat) 
+	gpu_testmat = gpuarray.to_gpu(y)
+	gpu_testmatim = gpuarray.to_gpu(yim)
+	plan.execute(gpu_testmat, gpu_testmatim, batch=1) 
 	c = gpu_testmat.get()
-	plan.execute(gpu_testmat, inverse=True) 
-	d = gpu_testmat.get()
+	plan.execute(gpu_testmat, gpu_testmatim, inverse=True, batch=1) 
+	d = np.real(gpu_testmat.get())
 
-	axarr[3].plot(catestmat)
+	axarr[3].plot(y)
 	axarr[3].set_title('input padded')
 	axarr[4].plot(c.transpose())
 	axarr[4].set_title('output Plan(input)')
@@ -53,8 +55,10 @@ def main():
 	axarr[5].set_title('output Plan(input, inverse=True)')
 	plt.show()
 
-#	print "c= "
-#	print c
+	print "y= "
+	print y
+	print "c= "
+	print c
 #	print "d= "
 #	print d
 
