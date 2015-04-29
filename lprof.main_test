@@ -1,0 +1,42 @@
+Wrote profile results to main_test.py.lprof
+Timer unit: 1e-06 s
+
+Total time: 0.495381 s
+File: main_test.py
+Function: main at line 12
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    12                                           @profile
+    13                                           def main():
+    14         1           37     37.0      0.0  	testmat = np.ones((50, 50), dtype=np.complex64)
+    15                                           	#print testmat
+    16                                           
+    17         1         9777   9777.0      2.0  	a = np.fft.fft(testmat,int(nearest_2power(2500)),-1)
+    18         1        14626  14626.0      3.0  	b = np.real(np.fft.ifft(a,int(nearest_2power(2500)),-1))
+    19                                           
+    20                                           #	print "a= "
+    21                                           #	print a
+    22                                           #	print "b= "
+    23                                           #	print b
+    24                                           
+    25         1       396464 396464.0     80.0  	cuda.init()
+    26         1        29995  29995.0      6.1  	context = make_default_context()
+    27         1           38     38.0      0.0  	stream = cuda.Stream()
+    28                                           
+    29         1        42654  42654.0      8.6  	plan = Plan((16, 16), stream=stream)
+    30                                           
+    31         1          420    420.0      0.1  	gpu_testmat = gpuarray.to_gpu(testmat)
+    32         1          921    921.0      0.2  	plan.execute(gpu_testmat) 
+    33         1          152    152.0      0.0  	c = gpu_testmat.get()
+    34                                           
+    35         1          171    171.0      0.0  	plan.execute(gpu_testmat, inverse=True) 
+    36         1          119    119.0      0.0  	d = gpu_testmat.get()
+    37                                           
+    38                                           #	print "c= "
+    39                                           #	print c
+    40                                           #	print "d= "
+    41                                           #	print d
+    42                                           
+    43         1            7      7.0      0.0  	context.pop()
+
