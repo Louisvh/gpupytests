@@ -10,48 +10,49 @@ def nearest_2power(n):
     return np.power(2.,(np.ceil(np.log2(n))))
 
 def main():
-	testmat = np.ones((100, 1), dtype=np.complex64)
-#	print testmat
 
 	x = np.linspace(0, 2 * np.pi, 400)
 	y1 = np.sin(2 * x)
 	y1 = np.concatenate((y1,np.zeros(112)))
 	y1 = y1.reshape(1,512)
-	y2 = np.sin(5 * x)
+	y2 = np.sin(10 * x)
 	y2 = np.concatenate((y2,np.zeros(112)))
 	y2 = y2.reshape(1,512)
 	y = np.concatenate(((y1),(y2)),0).transpose()
-	yim= np.zeros((2,512))
+	yim= np.zeros((512,2))
+
+	y = np.array(y,np.float64)
 
 	a = np.fft.fft(y,int(nearest_2power(400)),0)
 	b = np.real(np.fft.ifft(a,int(nearest_2power(400)),0))
 
+	#plot numpy fft results
 	f, axarr = plt.subplots(6, sharex=False)
 	axarr[0].plot(y)
 	axarr[0].set_title('input')
-	axarr[1].plot(a)
+	axarr[1].plot(np.real(a))
 	axarr[1].set_title('output np.fft(input)')
 	axarr[2].plot(b)
 	axarr[2].set_title('output np.ifft(np.fft(input))')
 
-#	print "a= "
-#	print a.transpose()
-#	print "b= "
-#	print b.transpose()
-
+	#init cuda
 	cuda.init()
 	context = make_default_context()
 	stream = cuda.Stream()
+	plan2 = Plan((512, 2), dtype=np.float64, context=context, stream=stream, fast_math=False)
+	plan1 = Plan((512), dtype=np.float64, context=context, stream=stream, fast_math=False)
 
-	plan = Plan((512,2), dtype=np.float64, context=context, stream=stream, fast_math=False)
-
+	#move data to gpu
 	gpu_testmat = gpuarray.to_gpu(y)
 	gpu_testmatim = gpuarray.to_gpu(yim)
-	plan.execute(gpu_testmat, gpu_testmatim, batch=1) 
-	c = gpu_testmat.get()
-	plan.execute(gpu_testmat, gpu_testmatim, inverse=True, batch=1) 
-	d = np.real(gpu_testmat.get())
+	plan1.execute(gpu_testmat, gpu_testmatim, batch=2) 
+	c = gpu_testmat.get() #get fft result
+	plan1.execute(gpu_testmat, gpu_testmatim, inverse=True, batch=2) 
+	d = np.real(gpu_testmat.get()) #get ifft result
 
+	print c.shape
+
+	#plot cuda fft results
 	axarr[3].plot(y)
 	axarr[3].set_title('input padded')
 	axarr[4].plot(c)
@@ -64,9 +65,8 @@ def main():
 	print y
 	print "c= "
 	print c
-#	print "d= "
-#	print d
 
+	#destroy cuda context
 	context.pop()
 
 main()
