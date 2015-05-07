@@ -1,0 +1,64 @@
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    12                                           @profile
+    13                                           def main(context, stream, plan1, N1, N2, g_buf1, g_buf2):
+    14                                               #N1 = # ffts applied
+    15                                               #N2 = dim of ffts
+    16      1000        29081     29.1      2.8      x = np.linspace(0, 2 * np.pi, N2)
+    17                                           
+    18      1000        15853     15.9      1.5      y = np.sin(2 * x)
+    19      1000         1412      1.4      0.1      ys = y
+    20      1000         3171      3.2      0.3      ys = ys.reshape(1,N2)
+    21      1000        28651     28.7      2.8      y = np.concatenate((y,np.zeros(nearest_2power(N2)-N2)))
+    22      1000        17482     17.5      1.7      y = y.reshape(1,nearest_2power(N2))
+    23                                           
+    24      2000         4346      2.2      0.4      for i in xrange(N1-1): #append N1-1 sines
+    25      1000        15769     15.8      1.5          yi = np.sin(2 * (i+2) * x)
+    26      1000         1424      1.4      0.1          yis = yi
+    27      1000         2525      2.5      0.2          yis = yis.reshape(1,N2)
+    28      1000         6410      6.4      0.6          ys = np.concatenate(((ys),(yis)),0)
+    29      1000        22692     22.7      2.2          yi = np.concatenate((yi,np.zeros(nearest_2power(N2)-N2)))
+    30      1000        16390     16.4      1.6          yi = yi.reshape(1,nearest_2power(N2))
+    31      1000         6154      6.2      0.6          y = np.concatenate(((y),(yi)),0)
+    32                                                   
+    33      1000         1920      1.9      0.2      y = y.transpose()
+    34      1000         3045      3.0      0.3      yim= np.zeros(y.shape)
+    35      1000         4303      4.3      0.4      y = np.array(y,np.float64)
+    36      1000         1842      1.8      0.2      yw = y.transpose()
+    37      1000         1577      1.6      0.2      yimw = yim.transpose()
+    38                                           
+    39      1000        56009     56.0      5.5      aw = np.fft.fft(ys,int(nearest_2power(N2)),1)
+    40      1000        61202     61.2      6.0      bw = np.real(np.fft.ifft(aw,int(nearest_2power(N2)),1))
+    41      1000        37487     37.5      3.7      aw0 = np.fft.fft(y,int(nearest_2power(N2)),0)
+    42      1000        56412     56.4      5.5      bw0 = np.real(np.fft.ifft(aw0,int(nearest_2power(N2)),0))
+    43                                           
+    44      1000         5258      5.3      0.5      np.set_printoptions(threshold=np.nan)
+    45                                               
+    46      1000        83273     83.3      8.1      gpu_testmat = gpuarray.to_gpu(y)
+    47      1000        74341     74.3      7.3      gpu_testmatim = gpuarray.to_gpu(yim)
+    48                                           
+    49      1000        71801     71.8      7.0      plan1.execute(gpu_testmat, gpu_testmatim, batch=N1) 
+    50      1000        58881     58.9      5.7      gfft = gpu_testmat.get() #get fft result
+    51      1000        68782     68.8      6.7      plan1.execute(gpu_testmat, gpu_testmatim, inverse=True, batch=N1) 
+    52      1000        60379     60.4      5.9      gifft = np.real(gpu_testmat.get()) #get ifft result
+    53                                               
+    54      1000        11788     11.8      1.2      cuda.memcpy_htod(g_buf1, y)
+    55      1000         9177      9.2      0.9      cuda.memcpy_htod(g_buf2, yim)
+    56                                                   
+    57      1000        67728     67.7      6.6      plan1.execute(g_buf1, g_buf2, batch=N1) 
+    58      1000         4075      4.1      0.4      grfft=np.empty_like(y)
+    59      1000        21944     21.9      2.1      cuda.memcpy_dtoh(grfft, g_buf1)  #fft result
+    60      1000        65104     65.1      6.4      plan1.execute(g_buf1, g_buf2, inverse=True, batch=N1) 
+    61      1000         3927      3.9      0.4      grifft=np.empty_like(y)
+    62      1000        21106     21.1      2.1      cuda.memcpy_dtoh(grifft, g_buf1) #ifft result
+    63                                               
+    64      1000         1792      1.8      0.2      if Plot:
+    65                                                   #plot cuda fft results
+    66                                                   f, axarr = plt.subplots(5, sharex=False)
+    67                                                   axarr[0].plot(y)
+    68                                                   axarr[1].plot(gfft)
+    69                                                   axarr[2].plot(gifft)
+    70                                                   axarr[3].plot(grfft)
+    71                                                   axarr[4].plot(grifft)
+    72                                                   plt.show()
+    73                                                   raise SystemExit 

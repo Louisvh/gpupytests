@@ -10,7 +10,7 @@ def nearest_2power(n):
     return np.power(2.,(np.ceil(np.log2(n))))
 
 @profile
-def main(context, stream, plan1, N1, N2):
+def main(context, stream, plan1, N1, N2, g_buf1, g_buf2):
     #N1 = # ffts applied
     #N2 = dim of ffts
     x = np.linspace(0, 2 * np.pi, N2)
@@ -22,7 +22,7 @@ def main(context, stream, plan1, N1, N2):
     y = y.reshape(1,nearest_2power(N2))
 
     for i in xrange(N1-1): #append N1-1 sines
-        yi = np.sin(2 * i * x)
+        yi = np.sin(2 * (i+2) * x)
         yis = yi
         yis = yis.reshape(1,N2)
         ys = np.concatenate(((ys),(yis)),0)
@@ -38,40 +38,45 @@ def main(context, stream, plan1, N1, N2):
 
     aw = np.fft.fft(ys,int(nearest_2power(N2)),1)
     bw = np.real(np.fft.ifft(aw,int(nearest_2power(N2)),1))
+    aw0 = np.fft.fft(y,int(nearest_2power(N2)),0)
+    bw0 = np.real(np.fft.ifft(aw0,int(nearest_2power(N2)),0))
 
-    if Plot:    
-        #plot numpy fft results
-        f, axarr = plt.subplots(6, sharex=False)
-        axarr[0].plot(ys.transpose())
-        axarr[0].set_title('input')
-        axarr[1].plot(np.real(aw).transpose())
-        axarr[1].set_title('output np.fft(input)')
-        axarr[2].plot(bw.transpose())
-        axarr[2].set_title('output np.ifft(np.fft(input))')
-
+    np.set_printoptions(threshold=np.nan)
+    
     gpu_testmat = gpuarray.to_gpu(y)
     gpu_testmatim = gpuarray.to_gpu(yim)
+
     plan1.execute(gpu_testmat, gpu_testmatim, batch=N1) 
-    c = gpu_testmat.get() #get fft result
+    gfft = gpu_testmat.get() #get fft result
     plan1.execute(gpu_testmat, gpu_testmatim, inverse=True, batch=N1) 
-    d = np.real(gpu_testmat.get()) #get ifft result
+    gifft = np.real(gpu_testmat.get()) #get ifft result
+    
+    cuda.memcpy_htod(g_buf1, y)
+    cuda.memcpy_htod(g_buf2, yim)
+        
+    plan1.execute(g_buf1, g_buf2, batch=N1) 
+    grfft=np.empty_like(y)
+    cuda.memcpy_dtoh(grfft, g_buf1)  #fft result
+    plan1.execute(g_buf1, g_buf2, inverse=True, batch=N1) 
+    grifft=np.empty_like(y)
+    cuda.memcpy_dtoh(grifft, g_buf1) #ifft result
     
     if Plot:
         #plot cuda fft results
-        axarr[3].plot(y)
-        axarr[3].set_title('input padded')
-        axarr[4].plot(c)
-        axarr[4].set_title('output Plan(input)')
-        axarr[5].plot(d)
-        axarr[5].set_title('output Plan(input, inverse=True)')
+        f, axarr = plt.subplots(5, sharex=False)
+        axarr[0].plot(y)
+        axarr[1].plot(gfft)
+        axarr[2].plot(gifft)
+        axarr[3].plot(grfft)
+        axarr[4].plot(grifft)
         plt.show()
         raise SystemExit    
 
 #set dimensions
-N1 = 5
+N1 = 2
 N2 = 114
 N = 1000
-Plot = True
+Plot = False
 
 #init cuda
 cuda.init()
@@ -79,9 +84,13 @@ context = make_default_context()
 stream = cuda.Stream()
 plan1 = Plan(int(nearest_2power(N2)), dtype=np.float64, context=context, stream=stream, fast_math=False)
 test = gpuarray.to_gpu(np.array([1, 0]))
+
+g_buf1 = cuda.mem_alloc(int(8*N1*nearest_2power(N2)))
+g_buf2 = cuda.mem_alloc(int(8*N1*nearest_2power(N2)))
+
 #do operation N times for profiling purposes
 for i in xrange(N):
-    main(context=context, stream=stream, plan1=plan1, N1=N1, N2=N2)
+    main(context=context, stream=stream, plan1=plan1, N1=N1, N2=N2, g_buf1=g_buf1, g_buf2=g_buf2)
 
 #destroy cuda context
 context.pop()
