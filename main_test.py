@@ -6,6 +6,8 @@ import pycuda.driver as cuda
 from pycuda.tools import make_default_context
 import pycuda.gpuarray as gpuarray
 
+from pycuda.compiler import SourceModule
+
 def nearest_2power(n):
     return np.power(2.,(np.ceil(np.log2(n))))
 
@@ -40,28 +42,26 @@ def main(context, stream, plan1, N1, N2, g_buf1, g_buf2):
     bw = np.real(np.fft.ifft(aw,int(nearest_2power(N2)),1))
     aw0 = np.fft.fft(y,int(nearest_2power(N2)),0)
     bw0 = np.real(np.fft.ifft(aw0,int(nearest_2power(N2)),0))
-
-    np.set_printoptions(threshold=np.nan)
     
     gpu_testmat = gpuarray.to_gpu(y)
     gpu_testmatim = gpuarray.to_gpu(yim)
-
     plan1.execute(gpu_testmat, gpu_testmatim, batch=N1) 
     gfft = gpu_testmat.get() #get fft result
     plan1.execute(gpu_testmat, gpu_testmatim, inverse=True, batch=N1) 
     gifft = np.real(gpu_testmat.get()) #get ifft result
     
     cuda.memcpy_htod(g_buf1, y)
-    cuda.memcpy_htod(g_buf2, yim)
-        
+    cuda.memset_d32(g_buf2, 0, yim.size*2) # double all zero bits should be zero again. This function only works for 32 bit, so we need twice as many
     plan1.execute(g_buf1, g_buf2, batch=N1) 
     grfft=np.empty_like(y)
     cuda.memcpy_dtoh(grfft, g_buf1)  #fft result
     plan1.execute(g_buf1, g_buf2, inverse=True, batch=N1) 
     grifft=np.empty_like(y)
     cuda.memcpy_dtoh(grifft, g_buf1) #ifft result
-    
+
     if Plot:
+        np.set_printoptions(threshold=np.nan)
+        
         #plot cuda fft results
         f, axarr = plt.subplots(5, sharex=False)
         axarr[0].plot(y)
@@ -73,8 +73,8 @@ def main(context, stream, plan1, N1, N2, g_buf1, g_buf2):
         raise SystemExit    
 
 #set dimensions
-N1 = 2
-N2 = 114
+N1 = 50
+N2 = 128
 N = 1000
 Plot = False
 
